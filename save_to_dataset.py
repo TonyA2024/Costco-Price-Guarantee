@@ -11,9 +11,11 @@ def write_to_database(rows: list[ReceiptRow]):
         print("No rows to save")
         return
     data = {
+        "Item_code" : [r.item_code for r in rows],
         "Item_description": [r.description for r in rows],
         "Item_price" : [r.price for r in rows],
-        "Purchase_date" : [r.purchase_date for r in rows]
+        "Purchase_date" : [r.purchase_date for r in rows],
+        "Price_Guarantee_Expiration_Date" : [r.expiration_date for r in rows]
     }
 
     df = pd.DataFrame(data)

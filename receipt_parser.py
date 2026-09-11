@@ -5,10 +5,8 @@ Costco receipt parser built on Google Cloud Vision's word-level bounding boxes.
    otherwise price-shaped tokens from the payment-summary section (e.g.
    "AMOUNT: $308.78") contaminate column-boundary detection.
 2. Left/right columns must be clustered into rows SEPARATELY, then paired
-   by order -- not by matching absolute y-values. A tilted photo means the
-   same physical row has different y at different x-positions, so item
-   text (small x) and its price (large x) can drift apart in y.
-3. The 'E' tax-marker glyphs on this receipt print off-baseline from the
+   by order.
+3. The 'E' tax-marker glyphs on Costco receipts print off-baseline from the
    item text itself, so they're dropped before row-building rather than
    fought with tolerance tuning.
 """
@@ -17,15 +15,19 @@ import re
 import base64
 import requests
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta, datetime
 from dotenv import load_dotenv
 
 load_dotenv()
 
-
+# price regex
 PRICE_RE = re.compile(r"^\$?\d+\.\d{2}-?$")
+# member number regex, a Costco member number is 10 digits followed by ASCII characters
 MEMBER_NUM_RE = re.compile(r"^\d{10,}$")
+# date format regex
 DATE_RE = re.compile(r"^\d{2}/\d{2}/\d{4}$")
+#Item code regex to split item code from item desc
+ITEM_CODE_RE = re.compile(r"^(\d+)\s+(.*)$")
 
 
 @dataclass
@@ -38,6 +40,9 @@ class Word:
 
 
 def call_vision_api(image_path: str, api_key: str) -> dict:
+    """
+    Calls Google Cloud Vision API on the image. Returns a json dump file
+    """
     with open(image_path, "rb") as f:
         content = base64.b64encode(f.read()).decode("utf-8")
 
@@ -54,7 +59,7 @@ def call_vision_api(image_path: str, api_key: str) -> dict:
 
 
 def extract_words(vision_response: dict) -> list[Word]:
-    """Pull individual words with bounding box centers from the raw API response.
+    """Pull individual words with bounding box centers from the raw json response.
 
     textAnnotations[0] is the full concatenated text block so it gets skipped--
     every entry after that is a single word/token with its own boundingPoly.
@@ -78,11 +83,7 @@ def extract_words(vision_response: dict) -> list[Word]:
 def find_item_table_bounds(words: list[Word]) -> tuple[float, float]:
     """
     Locate the y-range of the actual item table: from the member-number
-    line down to SUBTOTAL. Anchoring on the member number itself (rather
-    than the word 'Member') matters because the header line is tilted --
-    'GP', 'Member', and the number sit at three different y-values -- so
-    we take the topmost 10+ digit number as the anchor, since later
-    item-reference numbers can also be 10+ digits further down the table.
+    line down to SUBTOTAL.
     """
     header_candidates = [w.y_center for w in words if MEMBER_NUM_RE.match(w.text)]
     subtotal_ys = [w.y_center for w in words if w.text.upper() == "SUBTOTAL"]
@@ -90,7 +91,7 @@ def find_item_table_bounds(words: list[Word]) -> tuple[float, float]:
         raise ValueError("Couldn't find header or SUBTOTAL anchor to bound the item table")
 
     top = min(header_candidates) + 10
-    bottom = min(subtotal_ys) - 15  # wide enough margin that SUBTOTAL's own price doesn't leak in
+    bottom = min(subtotal_ys) - 15
     return top, bottom
 
 def get_purchase_date(words: list[Word]) -> tuple[int, int, int]:
@@ -143,7 +144,9 @@ def group_into_rows(words: list[Word], y_tolerance: float = 10) -> list[list[Wor
 class ReceiptRow:
     description: str
     price: float | None
+    item_code: str | None = None
     purchase_date: date | None = None
+    expiration_date: date | None = None
     raw_words: list[str] = field(default_factory=list)
 
 
@@ -155,6 +158,26 @@ def parse_price_token(token: str) -> float | None:
     except ValueError:
         return None
 
+def split_item_code(text: str) -> tuple[str | None, str]:
+    """Split item code off from item description"""
+    match = ITEM_CODE_RE.match(text);
+    if match:
+        return match.group(1), match.group(2)
+    return None, text
+
+def merge_discount_rows(rows: list[ReceiptRow]) -> list[ReceiptRow]:
+    """
+    Remove Costco sale savings from above row/item
+    """
+    merged: list[ReceiptRow] = []
+    for row in rows:
+        if row.price is not None and row.price < 0:
+            if not merged:
+                raise ValueError(f"Discount row {row.description} has no preceding item to apply it to")
+            merged[-1].price = round(merged[-1].price + row.price,2)
+            continue
+        merged.append(row)
+    return merged
 
 def parse_receipt_words(words: list[Word]) -> list[ReceiptRow]:
     top, bottom = find_item_table_bounds(words)
@@ -162,7 +185,6 @@ def parse_receipt_words(words: list[Word]) -> list[ReceiptRow]:
     purchase_date = get_purchase_date(words)
 
     # drop standalone tax-marker 'E' tokens -- printed off-baseline from
-    # the item text on this receipt, not needed to identify an item
     table_words = [w for w in table_words if w.text != "E"]
 
     boundary_x = find_column_boundary(table_words)
@@ -178,18 +200,26 @@ def parse_receipt_words(words: list[Word]) -> list[ReceiptRow]:
             f"right rows -- pairing would be unreliable. Inspect both lists before trusting output."
         )
 
-    results = []
+    raw_rows = []
     for lrow, rrow in zip(left_rows, right_rows):
         description = " ".join(w.text for w in lrow)
         price_text = rrow[-1].text if rrow else None
         price = parse_price_token(price_text) if price_text else None
-        results.append(ReceiptRow(
+        raw_rows.append(ReceiptRow(
             description=description,
             price=price,
             purchase_date=purchase_date,
-            raw_words=[w.text for w in lrow] + [w.text for w in rrow],
+            expiration_date= purchase_date + timedelta(days=30),
+            raw_words=[w.text for w in lrow] + [w.text for w in rrow]
         ))
-    return results
+    merged_rows = merge_discount_rows(raw_rows)
+
+    for row in merged_rows:
+        item_code, description = split_item_code(row.description)
+        row.item_code = item_code
+        row.description = description
+
+    return merged_rows
 
 
 def parse_receipt(image_path: str, api_key: str) -> list[ReceiptRow]:
@@ -203,5 +233,5 @@ if __name__ == "__main__":
     API_KEY = os.environ["GOOGLE_VISION_API_KEY"]
     results = parse_receipt("costco_zoom_receipt.png", API_KEY)
     for r in results:
-        print(f"{r.price!s:>10}  {r.description} ({r.purchase_date})")
+        print(f"{r.item_code!s: <10} {r.price!s:>10}  {r.description} ({r.purchase_date}) ({r.expiration_date})")
 """
