@@ -11,6 +11,22 @@ Built as a full pipeline: OCR → structured parsing → price monitoring → re
 Receipt image → Google Cloud Vision OCR → word-level bounding-box reconstruction → structured item records (Postgres via SQLAlchemy/pandas).
 Price monitoring → currently manual/semi-automated (see "Engineering findings" below) → refund-amount calculation on any detected drop.
 
+## Current status
+
+**Completed:**
+- Full OCR pipeline: receipt image → Google Cloud Vision → word-level bounding-box reconstruction → structured item records (item code, description, price, purchase date).
+- Discount-line merging and 30-day expiration-date calculation, persisted to Postgres.
+- Manual price-check system: a daily reminder email listing items still in their refund window, an interactive CLI walkthrough for logging observed prices, and a refund email summarizing any drops found.
+- Expired-item cleanup (removes rows past their 30-day window).
+- Codebase split into a cron-safe path (no user input, safe to run unattended) and an interactive path (run manually, e.g. over SSH), so the reminder email can run on a schedule without blocking on input it'll never receive.
+- Tested end-to-end locally on Windows.
+
+**Planned: Raspberry Pi deployment**
+- Moving this system onto a dedicated Raspberry Pi, run entirely separately from my other Pi-based project (a Immich photo server on a different network).
+- Configuring WiFi and SSH for the Pi.
+- Using Tailscale for remote SSH access (to run the interactive price-check) and Taildrop for uploading new receipt photos from phone.
+- Cron will run the daily reminder email automatically; the interactive price-logging step stays a manual SSH session by design, since it requires live input.
+
 ## Technical challenges solved
 * Two-column OCR reconstruction: Vision's raw text output groups words by visual block, not physical row, and costco has two-column receipts. This was solved by reconstructing rows from word-level bounding-box coordinates found in the OCR json file.
 * Photo skew correction: a tilted photo causes the same physical row to have different y-coordinates at different x-positions — solved by clustering left/right columns separately and pairing by order rather than absolute position.
@@ -24,4 +40,4 @@ Price monitoring → currently manual/semi-automated (see "Engineering findings"
 * After these tests I was able to track the block to Akamai Bot Manager (confirmed via the errors.edgesuite.net domain in the returned block page) — an enterprise-grade anti-bot system, and not one I could get around.
 * Documented decision: rather than escalating farther past my skill level to try to get around the anti-bot system, I pivoted to a manual/semi-automated price-check design, a deliberate engineering tradeoff.
 
-Tech stack: Python, Google Cloud Vision API, Postgres, SQLAlchemy, pandas, Playwright
+Tech stack: Python, Google Cloud Vision API, Postgres, SQLAlchemy, pandas, Playwright, Raspberry Pi, Tailscale
