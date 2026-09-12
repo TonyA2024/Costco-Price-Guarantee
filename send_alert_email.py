@@ -17,12 +17,12 @@ def get_active_items() -> pd.DataFrame:
     """
     engine = create_engine(os.environ["DATABASE_URL"])
     query = """
-        SELECT item_code, item_description, price, purchase_date FROM products
-        WHERE purchase_date >= %(cutoff)s
+        SELECT Item_code, Item_description, Item_price, Purchase_date FROM products
+        WHERE Price_Guarantee_Expiration_Date >= %(cutoff)s
     """
 
-    cutoff = date.today() - timedelta(days=WINDOW_DAYS)
-    return pd.read_sql(query, engine, param={"cutoff": cutoff})
+    cutoff = date.today()
+    return pd.read_sql(query, engine, params={"cutoff": cutoff})
 
 
 
@@ -48,9 +48,12 @@ def send_email():
     except Exception as e:
         print(f"An error occured: {e}")
 
-if __name__ == "main":
+if __name__ == "__main__":
     #send_email()
-    items = get_active_items()
+    active = get_active_items()
 
-    for i in items:
-        print(f"Item 1: {i}")
+    if active.empty:
+        print("Currently no items")
+
+
+    print("Hello?")
