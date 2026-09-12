@@ -19,13 +19,14 @@ Price monitoring → currently manual/semi-automated (see "Engineering findings"
 - Manual price-check system: a daily reminder email listing items still in their refund window, an interactive CLI walkthrough for logging observed prices, and a refund email summarizing any drops found.
 - Expired-item cleanup (removes rows past their 30-day window).
 - Codebase split into a cron-safe path (no user input, safe to run unattended) and an interactive path (run manually, e.g. over SSH), so the reminder email can run on a schedule without blocking on input it'll never receive.
+- Automated receipt intake pipeline (`process_incoming_receipts.py`): pulls newly Taildropped photos from a phone, runs each through OCR, and adds results to Postgres -- with per-file error handling so one bad photo doesn't stop the rest of a batch, and processed/failed files moved out of the incoming folder so nothing gets reprocessed on the next run.
 - Tested end-to-end locally on Windows.
 
 **Planned: Raspberry Pi deployment**
 - Moving this system onto a dedicated Raspberry Pi, run entirely separately from my other Pi-based project (a Immich photo server on a different network).
 - Configuring WiFi and SSH for the Pi.
-- Using Tailscale for remote SSH access (to run the interactive price-check) and Taildrop for uploading new receipt photos from phone.
-- Cron will run the daily reminder email automatically; the interactive price-logging step stays a manual SSH session by design, since it requires live input.
+- Using Tailscale for remote SSH access (to run the interactive price-check) and Taildrop for uploading new receipt photos from phone -- with `process_incoming_receipts.py` handling the Linux-specific step of pulling files out of Tailscale's staging area (`tailscale file get`) before processing them.
+- Two cron schedules: `process_incoming_receipts.py` running frequently (e.g. every 15 minutes) to pick up new receipts soon after they're scanned, and `run_frontend.py` running once daily for the reminder email. The interactive price-logging step stays a manual SSH session by design, since it requires live input.
 
 ## Technical challenges solved
 * Two-column OCR reconstruction: Vision's raw text output groups words by visual block, not physical row, and costco has two-column receipts. This was solved by reconstructing rows from word-level bounding-box coordinates found in the OCR json file.
