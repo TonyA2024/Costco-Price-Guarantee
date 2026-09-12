@@ -8,7 +8,9 @@ from sqlalchemy import create_engine
 
 load_dotenv()
 
-WINDOW_DAYS = 30
+RED = "\033[31m"
+RESET = "\033[0m"
+GREEN = "\033[32m"
 
 
 def get_active_items() -> pd.DataFrame:
@@ -98,7 +100,7 @@ def record_price_observation(active: pd.DataFrame) -> pd.DataFrame:
     refundable_records = []
     for _, item in active.iterrows():
         paid_price = item['price']
-        print(f"\nItem {item['item_code']} {item['item_description']} was purchased for ${paid_price}")
+        print(f"\n{RED}Item {item['item_code']} {item['item_description']} was purchased for ${paid_price}{RESET}")
         cheaper_or_not = prompt_choice("Enter 1 if the price has dropped or 2 if it has not: ", {1,2})
 
         if cheaper_or_not == 1:
@@ -106,7 +108,7 @@ def record_price_observation(active: pd.DataFrame) -> pd.DataFrame:
             if observed_price < paid_price:
                 refund = round(paid_price - observed_price, 2)
                 print(
-                    f"Price drop found! You are owed a ${refund:.2f} refund on item {item['item_code']}, {item['item_description']}")
+                    f"{GREEN}Price drop found! You are owed a ${refund:.2f} refund on item {item['item_code']}, {item['item_description']}{RESET}")
                 refundable_records.append({"item_code" : item['item_code'],
                                          "item_description": item['item_description'],
                                          "paid_price": paid_price,
@@ -150,7 +152,7 @@ def send_refund_email(refundable_items: pd.DataFrame):
             server.starttls()  # TLS connection
             server.login(SENDER_EMAIL, SENDER_PWD)
             server.send_message(msg)
-            print("Email sent successfully")
+            print("Refund Email sent successfully")
     except Exception as e:
         print(f"An error occurred: {e}")
 
