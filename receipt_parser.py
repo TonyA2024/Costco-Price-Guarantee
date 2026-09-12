@@ -94,6 +94,7 @@ def find_item_table_bounds(words: list[Word]) -> tuple[float, float]:
     bottom = min(subtotal_ys) - 15
     return top, bottom
 
+
 def get_purchase_date(words: list[Word]) -> tuple[int, int, int]:
     """
     Find and parse MM/DD/YYYY near the bottom of receipt
@@ -104,6 +105,7 @@ def get_purchase_date(words: list[Word]) -> tuple[int, int, int]:
 
     month, day, year = (int(p) for p in date_matches[0].split("/"))
     return date(year, month, day)
+
 
 def find_column_boundary(words: list[Word]) -> float:
     """
@@ -119,7 +121,9 @@ def find_column_boundary(words: list[Word]) -> float:
 
 
 def group_into_rows(words: list[Word], y_tolerance: float = 10) -> list[list[Word]]:
-    """Cluster words into rows based on vertical position, sorted left-to-right."""
+    """
+    Cluster words into rows based on vertical position, sorted left-to-right.
+    """
     words_sorted = sorted(words, key=lambda w: w.y_center)
     rows: list[list[Word]] = []
     current_row: list[Word] = []
@@ -151,6 +155,10 @@ class ReceiptRow:
 
 
 def parse_price_token(token: str) -> float | None:
+    """
+    Parse the price token into dollars
+    Handle the special case where the sale is subtracted
+    """
     try:
         if token.endswith("-"):
             return -float(token[:-1])
@@ -158,16 +166,22 @@ def parse_price_token(token: str) -> float | None:
     except ValueError:
         return None
 
+
 def split_item_code(text: str) -> tuple[str | None, str]:
-    """Split item code off from item description"""
+    """
+    Split item code off from item description
+    Item code will be saved as a separate column in the dataset
+    """
     match = ITEM_CODE_RE.match(text);
     if match:
         return match.group(1), match.group(2)
     return None, text
 
+
 def merge_discount_rows(rows: list[ReceiptRow]) -> list[ReceiptRow]:
     """
     Remove Costco sale savings from above row/item
+    After subtracting the sale, remove that line entirely
     """
     merged: list[ReceiptRow] = []
     for row in rows:
@@ -179,7 +193,13 @@ def merge_discount_rows(rows: list[ReceiptRow]) -> list[ReceiptRow]:
         merged.append(row)
     return merged
 
+
 def parse_receipt_words(words: list[Word]) -> list[ReceiptRow]:
+    """
+    Parse all the words in the image
+    :param words:
+    :return:
+    """
     top, bottom = find_item_table_bounds(words)
     table_words = [w for w in words if top <= w.y_center <= bottom]
     purchase_date = get_purchase_date(words)
@@ -223,6 +243,10 @@ def parse_receipt_words(words: list[Word]) -> list[ReceiptRow]:
 
 
 def parse_receipt(image_path: str, api_key: str) -> list[ReceiptRow]:
+    """
+    Parse the receipt by calling the Google Vision API OCR
+    Extract the words to be formatted
+    """
     response = call_vision_api(image_path, api_key)
     words = extract_words(response)
     return parse_receipt_words(words)
