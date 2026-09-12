@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-from receipt_parser import ReceiptRow
+from Backend.receipt_parser import ReceiptRow
 from sqlalchemy import create_engine
 from dotenv import load_dotenv
 load_dotenv()

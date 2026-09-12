@@ -158,7 +158,7 @@ def send_refund_email(refundable_items: pd.DataFrame):
 
 
 
-if __name__ == "__main__":
+def main():
     active = get_active_items()
 
     if active.empty:

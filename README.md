@@ -6,7 +6,7 @@ Built as a full pipeline: OCR → structured parsing → price monitoring → re
 
 
 ## Architecture / pipeline
-![Program Architecture](costco_price_tracker_architecture.png)
+![Program Architecture](Backend/costco_price_tracker_architecture.png)
 
 Receipt image → Google Cloud Vision OCR → word-level bounding-box reconstruction → structured item records (Postgres via SQLAlchemy/pandas).
 Price monitoring → currently manual/semi-automated (see "Engineering findings" below) → refund-amount calculation on any detected drop.
