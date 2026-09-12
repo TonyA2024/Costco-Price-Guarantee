@@ -156,18 +156,34 @@ def send_refund_email(refundable_items: pd.DataFrame):
     except Exception as e:
         print(f"An error occurred: {e}")
 
-
-
-def main():
+def send_daily_reminder():
+    """
+    Will be called from cron on the raspberry pi
+    """
     active = get_active_items()
 
     if active.empty:
         print("Currently no items")
+        return
     else:
         message = format_reminder(active)
         send_reminder_email(message)
-        refundable_items = record_price_observation(active)
-        if not refundable_items.empty:
-            send_refund_email(refundable_items)
-        else:
-            print("No refunds found this run")
+
+def check_prices_interactively():
+    """
+    Run personally over SSH when the user wants to log prices they found
+    """
+    active = get_active_items()
+
+    if active.empty:
+        print("Currently no items")
+        return
+
+    refundable_items = record_price_observation(active)
+    if not refundable_items.empty:
+        send_refund_email(refundable_items)
+    else:
+        print("No refunds found this run.")
+
+if __name__ == "__main__":
+    check_prices_interactively()
