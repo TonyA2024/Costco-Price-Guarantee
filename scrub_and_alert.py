@@ -74,7 +74,7 @@ def prompt_choice(prompt: str, valid_choices: set[int]) -> int:
         try:
             choice = int(raw)
         except ValueError:
-            print(f"Please enter a number ({'/'.join(str(c) for c in sorted(valid_choices))}.")
+            print(f"Please enter a number ({'/'.join(str(c) for c in sorted(valid_choices))}).")
             continue
         if choice not in valid_choices:
             print(f"Please enter one of: {','.join(str(c) for c in sorted(valid_choices))}.")
