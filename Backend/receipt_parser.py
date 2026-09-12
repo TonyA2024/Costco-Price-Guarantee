@@ -15,7 +15,7 @@ import re
 import base64
 import requests
 from dataclasses import dataclass, field
-from datetime import date, timedelta, datetime
+from datetime import date, timedelta
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -95,7 +95,7 @@ def find_item_table_bounds(words: list[Word]) -> tuple[float, float]:
     return top, bottom
 
 
-def get_purchase_date(words: list[Word]) -> tuple[int, int, int]:
+def get_purchase_date(words: list[Word]) -> date:
     """
     Find and parse MM/DD/YYYY near the bottom of receipt
     """
@@ -172,7 +172,7 @@ def split_item_code(text: str) -> tuple[str | None, str]:
     Split item code off from item description
     Item code will be saved as a separate column in the dataset
     """
-    match = ITEM_CODE_RE.match(text);
+    match = ITEM_CODE_RE.match(text)
     if match:
         return match.group(1), match.group(2)
     return None, text
@@ -255,7 +255,7 @@ def parse_receipt(image_path: str, api_key: str) -> list[ReceiptRow]:
 if __name__ == "__main__":
     import os
     API_KEY = os.environ["GOOGLE_VISION_API_KEY"]
-    results = parse_receipt("costco_zoom_receipt.png", API_KEY)
+    results = parse_receipt("costco_test_zoom_receipt.png", API_KEY)
     for r in results:
         print(f"{r.item_code!s: <10} {r.price!s:>10}  {r.description} ({r.purchase_date}) ({r.expiration_date})")
 """

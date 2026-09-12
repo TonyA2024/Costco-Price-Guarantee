@@ -1,6 +1,6 @@
 import os
 import smtplib
-from datetime import timedelta, date
+from datetime import date
 from email.message import EmailMessage
 import pandas as pd
 from dotenv import load_dotenv
